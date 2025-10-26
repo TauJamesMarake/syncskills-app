@@ -52,7 +52,7 @@
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/synckills.git
+git clone https://github.com/TauJamesMarake/synckills.git
 cd synckills
 
 
