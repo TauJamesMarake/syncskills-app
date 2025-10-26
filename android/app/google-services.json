@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "70329468145",
+    "project_id": "syncskills-app",
+    "storage_bucket": "syncskills-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70329468145:android:f26b0d70d3a0b44b789550",
+        "android_client_info": {
+          "package_name": "com.example.syncskills"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4lk_OrltucnUzNCpd-Piy2xwc3ZOycSo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

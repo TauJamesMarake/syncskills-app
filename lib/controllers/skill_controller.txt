@@ -1,0 +1,78 @@
+// skill_controller.dart
+import 'package:get/get.dart';
+import '../models/user_skill.dart';
+
+class SkillController extends GetxController {
+  // 1. Master list of available skills (made reactive in case we add more from an API)
+  final RxList<String> allSkills = RxList([
+    "C#",
+    "java",
+    "React",
+    "JavaScript",
+    "Java",
+    "Power BI",
+    "Flutter",
+    "Tableau",
+    "Python",
+    "MYSQL",
+    "Data analysis",
+    "SQL",
+    "Research",
+  ]);
+
+  // 2. Reactive list of selected skill names (passed to the next screen)
+  var selectedSkillNames = <String>{}.obs;
+
+  // 3. Reactive list of skills displayed in the UI (after search filtering)
+  var filteredSkills = <String>[].obs;
+
+  // 4. Reactive list to hold the final skills with their proficiency level
+  var finalUserSkills = <UserSkill>[].obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // Initialize filtered skills with all available skills
+    filteredSkills.addAll(allSkills);
+  }
+
+  // --- Logic for SkillSelectionScreen ---
+
+  void filterSkills(String query) {
+    String lowerCaseQuery = query.toLowerCase().trim();
+    if (lowerCaseQuery.isEmpty) {
+      filteredSkills.value = allSkills.toList();
+    } else {
+      filteredSkills.value = allSkills
+          .where((skill) => skill.toLowerCase().contains(lowerCaseQuery))
+          .toList();
+    }
+  }
+
+  void toggleSkillSelection(String skill, bool isSelected) {
+    if (isSelected) {
+      selectedSkillNames.add(skill);
+    } else {
+      selectedSkillNames.remove(skill);
+    }
+  }
+
+  void addNewSkill(String skill) {
+    String trimmedSkill = skill.trim();
+    if (trimmedSkill.isNotEmpty && !allSkills.contains(trimmedSkill)) {
+      allSkills.add(trimmedSkill); // Add to master list
+      selectedSkillNames.add(trimmedSkill); // Auto-select new skill
+      filterSkills(""); // Refresh the filtered list to show the new skill
+    }
+  }
+
+  // --- Logic for ProficiencyLevelScreen (Future Step) ---
+
+  // Method to save the final skill name + level list
+  void saveFinalSkills(List<UserSkill> skillsWithLevels) {
+    finalUserSkills.clear();
+    finalUserSkills.addAll(skillsWithLevels);
+    print("Final Skills Saved: ${finalUserSkills.length} skills.");
+    // TODO: Implement database save here
+  }
+}

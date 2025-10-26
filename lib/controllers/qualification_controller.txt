@@ -1,0 +1,74 @@
+import 'package:get/get.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncskills/models/qualification.dart';
+
+class QualificationController extends GetxController {
+  var qualifications = <Qualification>[].obs;
+
+  Qualification? _lastRemoved;
+  int? _lastRemovedIndex;
+
+  final supabase = Supabase.instance.client;
+
+  // Add qualification locally and remotely
+  Future<void> addQualification(Qualification qualification) async {
+    qualifications.add(qualification);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await supabase.from('qualifications').insert({
+        'id': qualification.id,
+        'user_id': user.id,
+        'title': qualification.title,
+        'institution': qualification.institution,
+        'certificate_number': qualification.certificateNumber,
+        'certificate_url': qualification.certificatePath,
+        'year_completed': qualification.yearCompleted,
+      });
+    } catch (e) {
+      print('Error adding qualification: $e');
+    }
+  }
+
+  // Toggle qualification active/inactive locally
+  void toggleQualificationStatus(
+    String qualificationId, {
+    required bool isActive,
+  }) {
+    final index = qualifications.indexWhere((q) => q.id == qualificationId);
+    if (index != -1) {
+      qualifications[index].isActive = !qualifications[index].isActive;
+      qualifications.refresh();
+      // (Optional) Add a Supabase update if needed
+    }
+  }
+
+  // Remove qualification locally and remotely
+  Future<void> removeQualification(String qualificationId) async {
+    final index = qualifications.indexWhere((q) => q.id == qualificationId);
+    if (index != -1) {
+      _lastRemoved = qualifications[index];
+      _lastRemovedIndex = index;
+      qualifications.removeAt(index);
+
+      try {
+        await supabase
+            .from('qualifications')
+            .delete()
+            .eq('id', qualificationId);
+      } catch (e) {
+        print('Error deleting qualification: $e');
+      }
+    }
+  }
+
+  void undoLastRemoval() {
+    if (_lastRemoved != null && _lastRemovedIndex != null) {
+      qualifications.insert(_lastRemovedIndex!, _lastRemoved!);
+      _lastRemoved = null;
+      _lastRemovedIndex = null;
+    }
+  }
+}

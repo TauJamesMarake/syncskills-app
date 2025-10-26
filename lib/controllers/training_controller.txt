@@ -1,0 +1,22 @@
+import 'package:get/get.dart';
+import 'package:syncskills/models/planned_course.dart';
+import 'package:syncskills/models/completed_training.dart';
+
+class TrainingController extends GetxController {
+  final RxList<PlannedCourse> planned = <PlannedCourse>[].obs;
+  final RxList<CompletedTraining> completed = <CompletedTraining>[].obs;
+
+  bool get hasPlanned => planned.isNotEmpty;
+  bool get hasCompleted => completed.isNotEmpty;
+
+  void addPlanned(PlannedCourse p) => planned.add(p);
+  void removePlanned(String id) => planned.removeWhere((p) => p.id == id);
+
+  void addCompleted(CompletedTraining t) => completed.add(t);
+  void removeCompleted(String id) => completed.removeWhere((t) => t.id == id);
+
+  void clearAll() {
+    planned.clear();
+    completed.clear();
+  }
+}
