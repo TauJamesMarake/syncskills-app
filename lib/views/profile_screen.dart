@@ -20,11 +20,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _experienceController = TextEditingController();
 
   String? profileImageUrl;
   bool isLoading = true;
   bool isSaving = false;
-  File? _imageFile;
+  bool isUploadingImage = false;
+  XFile? _imageFile;
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _phoneController.dispose();
     _departmentController.dispose();
     _positionController.dispose();
+    _experienceController.dispose();
     super.dispose();
   }
 
@@ -48,29 +51,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final user = supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        }
+        return;
+      }
 
-      // Load user profile
-      final profileData = await supabase
+      // Load user profile with error handling
+      final response = await supabase
           .from('employee_details')
           .select()
           .eq('id', user.id)
           .maybeSingle();
 
-      if (profileData != null) {
-        _firstNameController.text = profileData['first_name'] ?? '';
-        _lastNameController.text = profileData['last_name'] ?? '';
-        _emailController.text = user.email ?? '';
-        _phoneController.text = profileData['phone_number'] ?? '';
-        _departmentController.text = profileData['department'] ?? '';
-        _positionController.text = profileData['job_title'] ?? '';
-        profileImageUrl = profileData['profile_picture_url'];
+      if (response != null) {
+        // Safely set text field values
+        _firstNameController.text = response['first_name']?.toString() ?? '';
+        _lastNameController.text = response['last_name']?.toString() ?? '';
+        _phoneController.text = response['phone_number']?.toString() ?? '';
+        _departmentController.text = response['department']?.toString() ?? '';
+        _positionController.text = response['job_title']?.toString() ?? '';
+        _positionController.text = response['job_title'];
+        profileImageUrl = response['profile_picture_url']?.toString();
+
+        print('Profile loaded successfully');
+        print('Department: ${_departmentController.text}');
+        print('Position: ${_positionController.text}');
+      } else {
+        // If no profile exists, create one
+        await supabase.from('employee_details').insert({
+          'id': user.id,
+          'first_name': '',
+          'last_name': '',
+          'phone_number': '',
+          'department': '',
+          'job_title': '',
+          'years_of_experience': '',
+        });
+        print('Created new employee_details record');
       }
 
-      setState(() => isLoading = false);
+      // Set email from auth user
+      _emailController.text = user.email ?? '';
+
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     } catch (e) {
       print('Error loading profile: $e');
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -94,8 +132,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   imageQuality: 75,
                 );
                 if (photo != null) {
-                  setState(() => _imageFile = File(photo.path));
-                  _uploadImage();
+                  setState(() => _imageFile = XFile(photo.path));
+                  await _uploadImage();
                 }
               },
             ),
@@ -114,8 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   imageQuality: 75,
                 );
                 if (image != null) {
-                  setState(() => _imageFile = File(image.path));
-                  _uploadImage();
+                  setState(() => _imageFile = XFile(image.path));
+                  await _uploadImage();
                 }
               },
             ),
@@ -128,20 +166,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _uploadImage() async {
     if (_imageFile == null) return;
 
+    setState(() => isUploadingImage = true);
+
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      // Create unique filename
-      final fileName =
-          '${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final filePath = 'profile_pictures/$fileName';
+      // Create folder path for user
+      final folderPath = 'profile_pictures/${user.id}';
 
-      // Upload to Supabase Storage
-      await supabase.storage.from('avatars').upload(filePath, _imageFile!);
+      // Create unique filename with timestamp
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filePath = '/$folderPath/$fileName';
+
+      print('Uploading image to: $filePath');
+
+      // Check if bucket exists by trying to list files
+      try {
+        await supabase.storage.from('avatars').list(path: folderPath);
+      } catch (e) {
+        print('Bucket check error: $e');
+        throw Exception('Storage bucket "avatars" not found.');
+      }
+
+      // Delete old profile picture if it exists
+      if (profileImageUrl != null && profileImageUrl!.isNotEmpty) {
+        try {
+          final oldPath = Uri.parse(
+            profileImageUrl!,
+          ).path.split('/').skip(5).join('/');
+          await supabase.storage.from('avatars').remove([oldPath]);
+          print('Deleted old image: $oldPath');
+        } catch (e) {
+          print('Error deleting old image: $e');
+        }
+      }
+
+      // Upload new image
+      // final uploadPath = await supabase.storage
+      //     .from('avatars')
+      //     .upload(
+      //       filePath,
+      //       _imageFile!,
+      //       fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      //     );
+
+      // Upload new image (cross-platform safe)
+      final fileBytes = await _imageFile!.readAsBytes();
+
+      await supabase.storage
+          .from('avatars')
+          .uploadBinary(
+            filePath,
+            fileBytes,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+          );
+
+      // print('Upload successful: $uploadPath');
 
       // Get public URL
       final imageUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
+      print('Public URL: $imageUrl');
 
       // Update database
       await supabase
@@ -152,21 +237,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         profileImageUrl = imageUrl;
         _imageFile = null;
+        isUploadingImage = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile picture updated!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error uploading image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('Error uploading image: $e');
+      setState(() => isUploadingImage = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -177,54 +271,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final user = supabase.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
 
-      await supabase
-          .from('employee_details')
-          .update({
-            'first_name': _firstNameController.text.trim(),
-            'last_name': _lastNameController.text.trim(),
-            'phone_number': _phoneController.text.trim(),
-            'department': _departmentController.text.trim(),
-            'job_title': _positionController.text.trim(),
-          })
-          .eq('id', user.id);
+      final updateData = {
+        'first_name': _firstNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+        'phone_number': _phoneController.text.trim(),
+        'department': _departmentController.text.trim(),
+        'job_title': _positionController.text.trim(),
+        'years_of_experience': _experienceController.text.trim(),
+      };
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          // Show the alert dialog
-          Future.delayed(const Duration(seconds: 1), () {
-            Navigator.of(context).pop(); // Close the dialog after 1 second
-          });
+      print('Updating profile with data: $updateData');
 
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Icon(
-              Icons.check_circle_rounded,
-              color: Colors.green,
-              size: 60,
-            ),
-            content: const Text(
-              "Profile updated successfully!",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          );
-        },
-      );
+      // Use upsert to handle both insert and update
+      await supabase.from('employee_details').upsert({
+        'id': user.id,
+        ...updateData,
+      }, onConflict: 'id');
+
+      print('Profile updated successfully');
+
+      if (mounted) {
+        // Show success dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
+            });
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.green,
+                size: 60,
+              ),
+              content: const Text(
+                "Profile updated successfully!",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            );
+          },
+        );
+
+        // Reload profile to confirm data persistence
+        await Future.delayed(const Duration(milliseconds: 1500));
+        await _loadUserProfile();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating profile: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('Error updating profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => isSaving = false);
+      if (mounted) {
+        setState(() => isSaving = false);
+      }
     }
   }
 
@@ -282,33 +399,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         CircleAvatar(
                           radius: 60,
                           backgroundColor: Colors.white,
-                          child: CircleAvatar(
-                            radius: 56,
-                            backgroundImage: profileImageUrl != null
-                                ? NetworkImage(profileImageUrl!)
-                                : null,
-                            child: profileImageUrl == null
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 60,
-                                    color: Color(0xFF2D8F3C),
-                                  )
-                                : null,
-                          ),
+                          child: isUploadingImage
+                              ? const CircularProgressIndicator(
+                                  color: Color(0xFF2D8F3C),
+                                )
+                              : CircleAvatar(
+                                  radius: 56,
+                                  backgroundImage:
+                                      profileImageUrl != null &&
+                                          profileImageUrl!.isNotEmpty
+                                      ? NetworkImage(profileImageUrl!)
+                                      : null,
+                                  child:
+                                      profileImageUrl == null ||
+                                          profileImageUrl!.isEmpty
+                                      ? const Icon(
+                                          Icons.person,
+                                          size: 60,
+                                          color: Color(0xFF2D8F3C),
+                                        )
+                                      : null,
+                                ),
                         ),
                         Positioned(
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: _pickImage,
+                            onTap: isUploadingImage ? null : _pickImage,
                             child: Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFDB913),
+                              decoration: BoxDecoration(
+                                color: isUploadingImage
+                                    ? Colors.grey
+                                    : const Color(0xFFFDB913),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
-                                Icons.camera_alt,
+                              child: Icon(
+                                isUploadingImage
+                                    ? Icons.hourglass_empty
+                                    : Icons.camera_alt,
                                 color: Colors.white,
                                 size: 20,
                               ),
@@ -348,7 +477,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSectionTitle('Personal Information'),
                     const SizedBox(height: 16),
 
-                    // .. First Name
+                    // First Name
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -368,7 +497,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // .. First Name
+                    // Last Name
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -388,7 +517,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // .. Email
+                    // Email
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -409,7 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // .. Phone number
+                    // Phone number
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -432,7 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSectionTitle('Work Information'),
                     const SizedBox(height: 16),
 
-                    // .. Department
+                    // Department
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -452,7 +581,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // .. Position
+                    // Position
                     Align(
                       alignment: Alignment.centerLeft,
                       child: const Text(
@@ -468,6 +597,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildTextField(
                       hint: "Position",
                       controller: _positionController,
+                      icon: Icons.work,
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: const Text(
+                        "Year(s) of Experience",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2D8F3C),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildTextField(
+                      hint: "3",
+                      controller: _experienceController,
                       icon: Icons.work,
                     ),
 
