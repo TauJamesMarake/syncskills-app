@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:syncskills/views/all_qualiications_screen.dart';
 
 class AddAllQualificationScreen extends StatefulWidget {
   @override
-  _AddAllQualificationScreenState createState() => _AddAllQualificationScreenState();
+  _AddAllQualificationScreenState createState() =>
+      _AddAllQualificationScreenState();
 }
 
 class _AddAllQualificationScreenState extends State<AddAllQualificationScreen> {
@@ -53,7 +53,7 @@ class _AddAllQualificationScreenState extends State<AddAllQualificationScreen> {
               type: FileType.custom,
               allowedExtensions: ['pdf', 'jpg', 'png'],
             );
-            if (result != null) {
+            if (result != null && mounted) {
               setState(() {
                 uploadedFileName = result.files.single.name;
                 uploadedFilePath = result.files.single.path ?? "";
@@ -83,7 +83,7 @@ class _AddAllQualificationScreenState extends State<AddAllQualificationScreen> {
 
   // Add qualification to temporary list
   void _addQualificationToList() {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate() && mounted) {
       setState(() {
         tempQualifications.add({
           'title': qualificationController.text.trim(),
@@ -178,11 +178,8 @@ class _AddAllQualificationScreenState extends State<AddAllQualificationScreen> {
           ),
         );
 
-        // Navigate to summary screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => AllQualificationsScreen()),
-        );
+        // Return success to previous screen
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {

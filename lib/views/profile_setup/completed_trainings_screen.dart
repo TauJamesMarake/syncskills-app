@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -24,6 +25,11 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
 
   String uploadedFileName = "";
   String uploadedFilePath = "";
+  PlatformFile? _certificateFile;
+  String? certificateUrl;
+  bool isLoading = true;
+  bool isSaving = false;
+  bool isUploadingCertificate = false;
 
   // List to store trainings temporarily before saving
   List<Map<String, dynamic>> tempTrainings = [];
@@ -52,18 +58,100 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
     }
   }
 
-  /// Pick file
+  /// Pick file and upload
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
     );
 
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() {
+        _certificateFile = result.files.single;
         uploadedFileName = result.files.single.name;
         uploadedFilePath = result.files.single.path ?? "";
       });
+      // Upload immediately after selection
+      await _uploadCertificate();
+    }
+  }
+
+  Future<void> _uploadCertificate() async {
+    if (_certificateFile == null) return;
+
+    setState(() => isUploadingCertificate = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get file extension
+      final fileExtension = _certificateFile!.extension ?? 'pdf';
+
+      // Create unique filename with timestamp
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      final filePath = '${user.id}/$fileName';
+
+      print('Uploading certificate to: $filePath');
+
+      // Read file bytes (works on web and mobile)
+      final fileBytes =
+          _certificateFile!.bytes ??
+          await File(_certificateFile!.path!).readAsBytes();
+
+      // Upload to certificates bucket
+      await supabase.storage
+          .from('certificates')
+          .uploadBinary(
+            filePath,
+            fileBytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: false,
+              contentType: _certificateFile!.extension == 'pdf'
+                  ? 'application/pdf'
+                  : 'image/${_certificateFile!.extension}',
+            ),
+          );
+
+      print('Upload successful');
+
+      // Get public URL
+      final publicUrl = supabase.storage
+          .from('certificates')
+          .getPublicUrl(filePath);
+      print('Public URL: $publicUrl');
+
+      if (mounted) {
+        setState(() {
+          certificateUrl = publicUrl;
+          isUploadingCertificate = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Certificate uploaded successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading certificate: $e');
+
+      if (mounted) {
+        setState(() => isUploadingCertificate = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -77,7 +165,7 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
           'start_date': _startDateController.text.trim(),
           'completion_date': _endDateController.text.trim(),
           'certificate_number': _certificateController.text.trim(),
-          'certificate_url': uploadedFilePath,
+          'certificate_url': certificateUrl ?? '', // Use uploaded URL
         });
 
         // Clear form
@@ -88,6 +176,8 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
         _certificateController.clear();
         uploadedFileName = "";
         uploadedFilePath = "";
+        certificateUrl = null;
+        _certificateFile = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -220,7 +310,7 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
 
   Widget _buildUploadField() {
     return InkWell(
-      onTap: _pickFile,
+      onTap: isUploadingCertificate ? null : _pickFile,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
@@ -232,14 +322,22 @@ class _CompletedTrainingsScreenState extends State<CompletedTrainingsScreen> {
           children: [
             Expanded(
               child: Text(
-                uploadedFileName.isEmpty
-                    ? "Upload Document (PDF, JPG, PNG)"
-                    : uploadedFileName,
+                isUploadingCertificate
+                    ? "Uploading..."
+                    : (uploadedFileName.isEmpty
+                          ? "Upload Document (PDF, JPG, PNG)"
+                          : uploadedFileName),
                 style: TextStyle(color: Colors.grey[700]),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Icon(Icons.upload_file, size: 20),
+            isUploadingCertificate
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.upload_file, size: 20),
           ],
         ),
       ),

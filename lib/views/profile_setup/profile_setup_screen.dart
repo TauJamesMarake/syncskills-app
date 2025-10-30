@@ -236,7 +236,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                                   yearsOfExperienceController
                                                       .text,
                                                 ) ??
-                                                0,
+                                                yearsOfExperienceController
+                                                    .text,
                                             'created_at': DateTime.now()
                                                 .toIso8601String(),
                                           });

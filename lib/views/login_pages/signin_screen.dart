@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncskills/views/login_pages/signup_screen.dart';
 import 'package:syncskills/views/login_pages/forgot_password_screen.dart';
 import 'package:syncskills/views/profile_setup/profile_setup_screen.dart';
+import 'package:syncskills/user_dashboard_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -81,7 +82,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
       // Check if user profile exists in 'users' table
       final existingProfile = await Supabase.instance.client
-          .from('users')
+          .from('employee_details')
           .select()
           .eq('id', user.id)
           .maybeSingle();

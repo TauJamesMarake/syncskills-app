@@ -98,7 +98,6 @@ class _SkillsSummaryScreenState extends State<SkillsSummaryScreen> {
   }
 
   // Edit skill
-  // Replace the existing _editSkill method with this:
   void _editSkill(Map<String, dynamic> skill) {
     Navigator.push(
       context,

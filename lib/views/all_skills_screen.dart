@@ -161,26 +161,26 @@ class _ViewSkillsScreenState extends State<ViewSkillsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD4F1D4),
-     appBar: AppBar(
+      appBar: AppBar(
         backgroundColor: const Color(0xFF2D8F3C),
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text(
           'Skills',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => DashboardScreen()),
+            (route) => false,
+          ),
         ),
       ),
       body: SafeArea(
         child: Column(
           children: [
-            
             Expanded(
               child: isLoading
                   ? const Center(
@@ -328,10 +328,10 @@ class _ViewSkillsScreenState extends State<ViewSkillsScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          Navigator.push(
+          Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => AddSkillSelectionScreen(selectedSkills: [],),
+              builder: (context) => AddSkillSelectionScreen(selectedSkills: []),
             ),
           ).then((_) => _loadSkills());
         },
@@ -343,7 +343,8 @@ class _ViewSkillsScreenState extends State<ViewSkillsScreen> {
       bottomNavigationBar: _buildBottomNavBar(),
     );
   }
-   // .. Bottom Navigation Bar
+
+  // .. Bottom Navigation Bar
   Widget _buildBottomNavBar() {
     return Container(
       decoration: BoxDecoration(
@@ -378,11 +379,9 @@ class _ViewSkillsScreenState extends State<ViewSkillsScreen> {
             case 1:
               // TODO: Navigate to Skills Screen
               Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ViewSkillsScreen(),
-                            ),
-                          );
+                context,
+                MaterialPageRoute(builder: (context) => ViewSkillsScreen()),
+              );
               break;
             case 2:
               // TODO: Navigate to Learning Screen
@@ -392,7 +391,7 @@ class _ViewSkillsScreenState extends State<ViewSkillsScreen> {
 
               // soon to be changed to LEARNING(): the screen that contains nav. for LMS (qualifications incl.)
               // CURRENT SCREEN
-              
+
               break;
             case 3:
               // Navigate to Profile

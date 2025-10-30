@@ -147,7 +147,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (coursesToSave.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Colors.orange,
+          backgroundColor: Colors.red,
           content: Text('Please add at least one planned training'),
         ),
       );

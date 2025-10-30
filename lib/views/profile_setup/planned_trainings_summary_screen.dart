@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncskills/user_dashboard_screen.dart';
 
 class PlannedTrainingsSummaryScreen extends StatefulWidget {
   const PlannedTrainingsSummaryScreen({super.key});
@@ -439,12 +440,11 @@ class _PlannedTrainingsSummaryScreenState
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 onPressed: () {
-                  // Navigator.pushReplacement(
-                  //   context,
-                  //   MaterialPageRoute(
-                  //     builder: (context) => DashboardScreen(),
-                  //   ),
-                  // );
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => DashboardScreen()),
+                    (_) => false,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2D8F3C),

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncskills/views/all_badges_screen.dart';
+import 'package:syncskills/views/all_qualifications_screen.dart';
+import 'package:syncskills/views/all_skills_screen.dart';
 import 'package:syncskills/views/notifications.dart';
 import 'package:syncskills/views/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
@@ -24,6 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String selectedTraining = "Current";
   bool isLoading = true;
+  List<Map<String, dynamic>> earnedBadges = [];
 
   @override
   void initState() {
@@ -37,6 +41,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
+
+      // .. Load badges
+      await supabase.rpc(
+        'check_and_award_badges',
+        params: {'p_user_id': user.id},
+      );
 
       // Load user profile
       final profileData = await supabase
@@ -72,6 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .select()
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
+
+      await Future.wait([_loadBadges()]);
 
       setState(() {
         userProfile = profileData;
@@ -115,6 +127,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .toList();
       default:
         return [];
+    }
+  }
+
+  // .. Badges
+  Future<void> _loadBadges() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final data = await supabase
+          .from('user_badges')
+          .select(
+            'badge_id, earned_at, badges (badge_name, tier, icon_emoji, description, points)',
+          )
+          .eq('user_id', user.id)
+          .order('earned_at', ascending: false);
+
+      setState(() {
+        earnedBadges = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      print('Error loading badges: $e');
     }
   }
 
@@ -284,12 +318,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Row(
         children: [
           GestureDetector(
-            // ✅ MAKE AVATAR CLICKABLE
+            // MAKE AVATAR CLICKABLE
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              ).then((_) => _loadAllData()); // Reload data when returning
+              ).then((_) => _loadAllData());
             },
             child: CircleAvatar(
               radius: 28,
@@ -534,6 +568,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ElevatedButton(
               onPressed: () {
                 // TODO: Navigate to full training list
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ViewSkillsScreen()),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
@@ -547,7 +585,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ..Badges Section (Based on completed trainings)
+  // ..Badges Section
   Widget _buildBadgesSection() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -560,20 +598,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          completedTrainings.isEmpty
+          earnedBadges.isEmpty
               ? _emptyState("No badges earned yet")
               : Column(
-                  children: completedTrainings.take(5).map((training) {
-                    return _badgeItem(training['training_name'] ?? 'Training');
+                  children: earnedBadges.take(5).map((badge) {
+                    final b = badge['badges'];
+                    return _badgeItem(
+                      b['icon_emoji'] ?? '🏅',
+                      b['badge_name'] ?? 'Badge',
+                      b['tier'] ?? '',
+                      b['description'] ?? '',
+                      b['points'] ?? 0,
+                    );
                   }).toList(),
                 ),
-          if (completedTrainings.length > 5) ...[
-            const SizedBox(height: 8),
-            const Align(
+          if (earnedBadges.length > 5) const SizedBox(height: 8),
+          if (earnedBadges.length > 5)
+            Align(
               alignment: Alignment.centerRight,
-              child: Text("View More>>", style: TextStyle(color: Colors.blue)),
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AllBadgesScreen()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("View All"),
+              ),
             ),
-          ],
         ],
       ),
     );
@@ -655,7 +711,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         ElevatedButton(
           onPressed: () {
-            // TODO: Navigate to edit screen
+            // TODO: Navigate to qualifications management screen
+            if (title == 'Manage Qualifications') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AllQualificationsScreen(),
+                ),
+              );
+            }
+            // TODO: Navigate to skills management screen
+            else if (title == 'Manage Skills') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ViewSkillsScreen()),
+              );
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.green,
@@ -715,14 +786,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _badgeItem(String title) {
+  // .. badge item
+  Widget _badgeItem(
+    String emoji,
+    String title,
+    String tier,
+    String desc,
+    int points,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          const Icon(Icons.verified, color: Colors.green, size: 20),
+          Text(emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 10),
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  desc,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '$points pts',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+            ),
+          ),
         ],
       ),
     );
@@ -776,11 +876,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           switch (index) {
             case 0:
               // Already on Dashboard
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DashboardScreen(),
+                ),
+              ).then((_) {
+                setState(() => _selectedIndex = 0);
+                _loadAllData();
+              });
               break;
             case 1:
               // TODO: Navigate to Skills Screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Skills screen coming soon')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ViewSkillsScreen()),
               );
               break;
             case 2:

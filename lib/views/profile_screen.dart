@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
+import 'package:syncskills/user_dashboard_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
@@ -202,15 +204,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      // Upload new image
-      // final uploadPath = await supabase.storage
-      //     .from('avatars')
-      //     .upload(
-      //       filePath,
-      //       _imageFile!,
-      //       fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
-      //     );
-
       // Upload new image (cross-platform safe)
       final fileBytes = await _imageFile!.readAsBytes();
 
@@ -374,7 +367,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => DashboardScreen()),
+            (route) => false,
+          ),
         ),
       ),
       body: SingleChildScrollView(

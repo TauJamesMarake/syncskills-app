@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -21,6 +23,11 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
 
   String uploadedFileName = "";
   String uploadedFilePath = "";
+  PlatformFile? _certificateFile;
+  String? certificateUrl;
+  bool isLoading = true;
+  bool isSaving = false;
+  bool isUploadingCertificate = false;
 
   // List to store qualifications temporarily before saving
   List<Map<String, dynamic>> tempQualifications = [];
@@ -48,18 +55,24 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () async {
-            FilePickerResult? result = await FilePicker.platform.pickFiles(
-              type: FileType.custom,
-              allowedExtensions: ['pdf', 'jpg', 'png'],
-            );
-            if (result != null) {
-              setState(() {
-                uploadedFileName = result.files.single.name;
-                uploadedFilePath = result.files.single.path ?? "";
-              });
-            }
-          },
+          onPressed: isUploadingCertificate
+              ? null
+              : () async {
+                  FilePickerResult? result = await FilePicker.platform
+                      .pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['pdf', 'jpg', 'png'],
+                      );
+                  if (result != null && mounted) {
+                    setState(() {
+                      _certificateFile = result.files.single;
+                      uploadedFileName = result.files.single.name;
+                      uploadedFilePath = result.files.single.path ?? "";
+                    });
+                    // Upload immediately after selection
+                    await _uploadCertificate();
+                  }
+                },
           style: OutlinedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
@@ -68,8 +81,18 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
               borderRadius: BorderRadius.circular(25),
             ),
           ),
-          icon: const Icon(Icons.upload_rounded),
-          label: Text(uploadedFileName.isEmpty ? "Upload" : uploadedFileName),
+          icon: isUploadingCertificate
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.upload_rounded),
+          label: Text(
+            isUploadingCertificate
+                ? "Uploading..."
+                : (uploadedFileName.isEmpty ? "Upload" : uploadedFileName),
+          ),
         ),
         const SizedBox(height: 4),
         const Text(
@@ -81,6 +104,85 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
     );
   }
 
+  Future<void> _uploadCertificate() async {
+    if (_certificateFile == null) return;
+
+    setState(() => isUploadingCertificate = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get file extension
+      final fileExtension = _certificateFile!.extension ?? 'pdf';
+
+      // Create unique filename with timestamp
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      final filePath = '${user.id}/$fileName';
+
+      print('Uploading certificate to: $filePath');
+
+      // Read file bytes (works on web and mobile)
+      final fileBytes =
+          _certificateFile!.bytes ??
+          await File(_certificateFile!.path!).readAsBytes();
+
+      // Upload to certificates bucket
+      await supabase.storage
+          .from('certificates')
+          .uploadBinary(
+            filePath,
+            fileBytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: false,
+              contentType: _certificateFile!.extension == 'pdf'
+                  ? 'application/pdf'
+                  : 'image/${_certificateFile!.extension}',
+            ),
+          );
+
+      print('Upload successful');
+
+      // Get public URL
+      final publicUrl = supabase.storage
+          .from('certificates')
+          .getPublicUrl(filePath);
+      print('Public URL: $publicUrl');
+
+      if (mounted) {
+        setState(() {
+          certificateUrl = publicUrl;
+          isUploadingCertificate = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Certificate uploaded successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading certificate: $e');
+
+      if (mounted) {
+        setState(() => isUploadingCertificate = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
   // Add qualification to temporary list
   void _addQualificationToList() {
     if (_formKey.currentState!.validate()) {
@@ -90,7 +192,7 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
           'institution': institutionController.text.trim(),
           'year_completed': int.tryParse(yearController.text.trim()) ?? 0,
           'certificate_number': certificateNumController.text.trim(),
-          'certificate_url': uploadedFilePath,
+          'certificate_url': certificateUrl ?? '', // Use uploaded URL
         });
 
         // Clear form
@@ -100,6 +202,8 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
         certificateNumController.clear();
         uploadedFileName = "";
         uploadedFilePath = "";
+        certificateUrl = null;
+        _certificateFile = null;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,7 +229,7 @@ class _AddQualificationScreenState extends State<AddQualificationScreen> {
             'institution': institutionController.text.trim(),
             'year_completed': int.tryParse(yearController.text.trim()) ?? 0,
             'certificate_number': certificateNumController.text.trim(),
-            'certificate_url': uploadedFilePath,
+            'certificate_url': certificateUrl ?? '', // Use uploaded URL
           });
         });
       } else {

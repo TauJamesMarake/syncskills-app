@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:syncskills/user_dashboard_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -48,7 +48,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
     setState(() {
       notifications.removeAt(index);
       // Remove any selection that’s out of bounds after deletion
-      selectedIndexes = selectedIndexes.where((i) => i < notifications.length).toSet();
+      selectedIndexes = selectedIndexes
+          .where((i) => i < notifications.length)
+          .toSet();
     });
   }
 
@@ -69,27 +71,20 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: const Color(0xFF2D8F3C),
+        foregroundColor: Colors.white,
         elevation: 0,
-        backgroundColor: Colors.white,
-        title: Row(
-          children: [
-            Text(
-              'SYNCSKILLS',
-              style: TextStyle(
-                color: Colors.green[700],
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'Audit | Skills | Excel',
-              style: TextStyle(
-                color: Colors.black54,
-                fontSize: 14,
-              ),
-            ),
-          ],
+        title: const Text(
+          'Notifications',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => DashboardScreen()),
+            (route) => false,
+          ),
         ),
       ),
       body: Column(
@@ -98,27 +93,21 @@ class _NotificationScreenState extends State<NotificationScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Text(
-                  "Notifications",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
+                // const Text(
+                //   "Notifications",
+                //   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                // ),
+                //const Spacer(),
                 Text(
                   "Unread (${notifications.length})",
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
                 if (selectedIndexes.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              tooltip: "Delete selected",
-              onPressed: _deleteSelected,
-            ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: "Delete selected",
+                    onPressed: _deleteSelected,
+                  ),
               ],
             ),
           ),
@@ -130,7 +119,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 return Card(
                   color: _getCardColor(index),
                   elevation: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   child: ListTile(
                     leading: Checkbox(
                       value: isSelected,
@@ -143,6 +135,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: "Delete",
                       onPressed: () => _deleteNotification(index),
                     ),
                     onTap: () => _toggleSelection(index),
@@ -151,7 +144,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
               },
             ),
           ),
-          
         ],
       ),
     );

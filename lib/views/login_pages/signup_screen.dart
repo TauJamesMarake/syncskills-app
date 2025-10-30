@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:syncskills/views/login_pages/check_email_page.dart';
+//import 'package:syncskills/views/login_pages/check_email_page.dart';
+import 'package:syncskills/views/login_pages/otp_screen.dart';
 import 'package:syncskills/views/login_pages/signin_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -23,6 +25,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  final _phoneNumberController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +35,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.addListener(_checkForm);
     _confirmPasswordController.addListener(_checkForm);
     _lastNameController.addListener(_checkForm);
+    _phoneNumberController.addListener(_checkForm);
   }
 
   void _checkForm() {
@@ -40,6 +45,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _lastNameController.text.isNotEmpty &&
           _emailController.text.isNotEmpty &&
           _passwordController.text.isNotEmpty &&
+          _phoneNumberController.text.isNotEmpty &&
           _confirmPasswordController.text.isNotEmpty;
     });
   }
@@ -50,6 +56,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _phoneNumberController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
@@ -60,6 +67,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
+
+    final phoneNumber = _phoneNumberController.text.trim();
+
+    if (phoneNumber.length < 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Phone numbers must be at least 10 characters long.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -130,7 +149,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => CheckEmailPage(email: email)),
+          MaterialPageRoute(
+            builder: (context) => CheckEmailPage(
+              email: email,
+
+              firstName: _firstNameController.text,
+              lastName: _lastNameController.text,
+              // isSignUp: true,
+              // phoneNumber: phoneNumber,
+              // password: password,
+            ),
+          ),
         );
       }
     } on AuthException catch (e) {
@@ -279,6 +308,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           controller: _emailController,
                           hint: 'Email',
                           validator: _validateEmail,
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        _buildTextField(
+                          controller: _phoneNumberController,
+                          hint: 'Phone Number',
+                          obscure: false,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your phone number';
+                            }
+                            if (value.length < 10) {
+                              return 'Phone number must be at least 10 characters';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 18),
 
